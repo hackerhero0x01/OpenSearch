@@ -57,6 +57,17 @@ public class DefaultStreamPoller implements StreamPoller {
     private volatile long cachedPointerBasedLag = 0;
     private volatile long lastPointerBasedLagUpdateTime = 0;
 
+    // Warmup configuration and state
+    private final boolean warmupEnabled;
+    private final long warmupTimeoutMs;
+    private final long warmupLagThreshold;
+    private final boolean warmupUseTimeLag;
+    private final long warmupTimeLagThreshold;
+    private final boolean warmupFailOnTimeout;
+    private volatile boolean warmupComplete = false;
+    private volatile long warmupStartTime = 0;
+    private final Object warmupLock = new Object();
+
     @Nullable
     private IngestionShardConsumer consumer;
     private IngestionConsumerFactory consumerFactory;
@@ -104,7 +115,13 @@ public class DefaultStreamPoller implements StreamPoller {
         int numProcessorThreads,
         int blockingQueueSize,
         long pointerBasedLagUpdateIntervalMs,
-        IngestionMessageMapper.MapperType mapperType
+        IngestionMessageMapper.MapperType mapperType,
+        boolean warmupEnabled,
+        long warmupTimeoutMs,
+        long warmupLagThreshold,
+        boolean warmupUseTimeLag,
+        long warmupTimeLagThreshold,
+        boolean warmupFailOnTimeout
     ) {
         this(
             startPointer,
@@ -120,7 +137,13 @@ public class DefaultStreamPoller implements StreamPoller {
             pollTimeout,
             pointerBasedLagUpdateIntervalMs,
             ingestionEngine.config().getIndexSettings(),
-            IngestionMessageMapper.create(mapperType.getName(), shardId)
+            IngestionMessageMapper.create(mapperType.getName(), shardId),
+            warmupEnabled,
+            warmupTimeoutMs,
+            warmupLagThreshold,
+            warmupUseTimeLag,
+            warmupTimeLagThreshold,
+            warmupFailOnTimeout
         );
     }
 
@@ -141,7 +164,13 @@ public class DefaultStreamPoller implements StreamPoller {
         int pollTimeout,
         long pointerBasedLagUpdateIntervalMs,
         IndexSettings indexSettings,
-        IngestionMessageMapper messageMapper
+        IngestionMessageMapper messageMapper,
+        boolean warmupEnabled,
+        long warmupTimeoutMs,
+        long warmupLagThreshold,
+        boolean warmupUseTimeLag,
+        long warmupTimeLagThreshold,
+        boolean warmupFailOnTimeout
     ) {
         this.consumerFactory = Objects.requireNonNull(consumerFactory);
         this.consumerClientId = Objects.requireNonNull(consumerClientId);
@@ -160,9 +189,19 @@ public class DefaultStreamPoller implements StreamPoller {
         this.errorStrategy = errorStrategy;
         this.indexName = indexSettings.getIndex().getName();
         this.messageMapper = Objects.requireNonNull(messageMapper);
+        this.warmupEnabled = warmupEnabled;
+        this.warmupTimeoutMs = warmupTimeoutMs;
+        this.warmupLagThreshold = warmupLagThreshold;
+        this.warmupUseTimeLag = warmupUseTimeLag;
+        this.warmupTimeLagThreshold = warmupTimeLagThreshold;
+        this.warmupFailOnTimeout = warmupFailOnTimeout;
 
         // handle initial poller states
         this.paused = initialState == State.PAUSED;
+        // If warmup is disabled, mark as complete immediately
+        if (!warmupEnabled) {
+            this.warmupComplete = true;
+        }
     }
 
     @Override
@@ -192,6 +231,13 @@ public class DefaultStreamPoller implements StreamPoller {
         }
         logger.info("Starting poller for shard {}", shardId);
 
+        // Initialize warmup if enabled
+        if (warmupEnabled && !warmupComplete) {
+            warmupStartTime = System.currentTimeMillis();
+            state = State.WARMING_UP;
+            logger.info("Starting warmup phase for shard {}, waiting for lag to catch up", shardId);
+        }
+
         while (true) {
             try {
                 if (closed) {
@@ -208,6 +254,11 @@ public class DefaultStreamPoller implements StreamPoller {
 
                 // Update lag periodically. Lag is updated even if the poller is paused.
                 updatePointerBasedLagIfNeeded();
+
+                // Check warmup status if not yet complete
+                if (!warmupComplete && warmupEnabled) {
+                    checkWarmupStatus();
+                }
 
                 if (paused || isWriteBlockEnabled) {
                     state = State.PAUSED;
@@ -350,6 +401,89 @@ public class DefaultStreamPoller implements StreamPoller {
     @Override
     public boolean isClosed() {
         return closed;
+    }
+
+    @Override
+    public boolean isWarmupComplete() {
+        return warmupComplete || !warmupEnabled;
+    }
+
+    /**
+     * Returns true if shard initialization should fail when warmup times out.
+     */
+    public boolean isWarmupFailOnTimeout() {
+        return warmupFailOnTimeout;
+    }
+
+    @Override
+    public boolean awaitWarmupComplete(long timeoutMs) throws InterruptedException {
+        if (!warmupEnabled || warmupComplete) {
+            return true;
+        }
+
+        synchronized (warmupLock) {
+            long deadline = System.currentTimeMillis() + timeoutMs;
+            while (!warmupComplete) {
+                long remaining = deadline - System.currentTimeMillis();
+                if (remaining <= 0) {
+                    logger.warn(
+                        "Warmup timeout for shard {} - proceeding with current lag (warmupComplete={})",
+                        shardId,
+                        warmupComplete
+                    );
+                    return false;
+                }
+                warmupLock.wait(Math.min(remaining, 1000)); // Wake up periodically to check
+            }
+            return true;
+        }
+    }
+
+    /**
+     * Check if warmup conditions are met and mark warmup as complete if so.
+     */
+    private void checkWarmupStatus() {
+        long currentLag;
+        long threshold;
+
+        // Determine which lag metric to use
+        if (warmupUseTimeLag || cachedPointerBasedLag < 0) {
+            // Use time-based lag for Kinesis or when pointer lag unavailable
+            currentLag = computeTimeBasedLag();
+            threshold = warmupTimeLagThreshold;
+        } else {
+            currentLag = cachedPointerBasedLag;
+            threshold = warmupLagThreshold;
+        }
+
+        long elapsedTime = System.currentTimeMillis() - warmupStartTime;
+        boolean lagBelowThreshold = currentLag >= 0 && currentLag <= threshold;
+        boolean timeoutReached = elapsedTime >= warmupTimeoutMs;
+
+        if (lagBelowThreshold) {
+            synchronized (warmupLock) {
+                warmupComplete = true;
+                warmupLock.notifyAll();
+                logger.info(
+                    "Warmup complete for shard {} - lag {} is at or below threshold {}",
+                    shardId,
+                    currentLag,
+                    threshold
+                );
+            }
+        } else if (timeoutReached) {
+            synchronized (warmupLock) {
+                warmupComplete = true;
+                warmupLock.notifyAll();
+                logger.warn(
+                    "Warmup timeout for shard {} after {}ms - proceeding with lag {} (threshold was {})",
+                    shardId,
+                    elapsedTime,
+                    currentLag,
+                    threshold
+                );
+            }
+        }
     }
 
     /**
@@ -604,6 +738,13 @@ public class DefaultStreamPoller implements StreamPoller {
         private int blockingQueueSize = 100;
         private long pointerBasedLagUpdateIntervalMs = 10000;
         private IngestionMessageMapper.MapperType mapperType = IngestionMessageMapper.MapperType.DEFAULT;
+        // Warmup configuration - defaults match IndexMetadata settings
+        private boolean warmupEnabled = true;
+        private long warmupTimeoutMs = 300000; // 5 minutes
+        private long warmupLagThreshold = 0;
+        private boolean warmupUseTimeLag = false;
+        private long warmupTimeLagThreshold = 0;
+        private boolean warmupFailOnTimeout = false;
 
         /**
          * Initialize the builder with mandatory parameters
@@ -704,6 +845,54 @@ public class DefaultStreamPoller implements StreamPoller {
         }
 
         /**
+         * Set warmup enabled
+         */
+        public Builder warmupEnabled(boolean warmupEnabled) {
+            this.warmupEnabled = warmupEnabled;
+            return this;
+        }
+
+        /**
+         * Set warmup timeout in milliseconds
+         */
+        public Builder warmupTimeoutMs(long warmupTimeoutMs) {
+            this.warmupTimeoutMs = warmupTimeoutMs;
+            return this;
+        }
+
+        /**
+         * Set warmup lag threshold (pointer-based)
+         */
+        public Builder warmupLagThreshold(long warmupLagThreshold) {
+            this.warmupLagThreshold = warmupLagThreshold;
+            return this;
+        }
+
+        /**
+         * Set whether to use time-based lag for warmup
+         */
+        public Builder warmupUseTimeLag(boolean warmupUseTimeLag) {
+            this.warmupUseTimeLag = warmupUseTimeLag;
+            return this;
+        }
+
+        /**
+         * Set warmup time-based lag threshold in milliseconds
+         */
+        public Builder warmupTimeLagThreshold(long warmupTimeLagThreshold) {
+            this.warmupTimeLagThreshold = warmupTimeLagThreshold;
+            return this;
+        }
+
+        /**
+         * Set whether shard initialization should fail on warmup timeout
+         */
+        public Builder warmupFailOnTimeout(boolean warmupFailOnTimeout) {
+            this.warmupFailOnTimeout = warmupFailOnTimeout;
+            return this;
+        }
+
+        /**
          * Build the DefaultStreamPoller instance
          */
         public DefaultStreamPoller build() {
@@ -722,7 +911,13 @@ public class DefaultStreamPoller implements StreamPoller {
                 numProcessorThreads,
                 blockingQueueSize,
                 pointerBasedLagUpdateIntervalMs,
-                mapperType
+                mapperType,
+                warmupEnabled,
+                warmupTimeoutMs,
+                warmupLagThreshold,
+                warmupUseTimeLag,
+                warmupTimeLagThreshold,
+                warmupFailOnTimeout
             );
         }
     }
