@@ -1314,6 +1314,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final TimeValue pointerBasedLagUpdateInterval = INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING.get(settings);
             final IngestionMessageMapper.MapperType mapperType = INGESTION_SOURCE_MAPPER_TYPE_SETTING.get(settings);
 
+            // Warmup settings
+            final boolean warmupEnabled = INGESTION_SOURCE_WARMUP_ENABLED_SETTING.get(settings);
+            final TimeValue warmupTimeout = INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING.get(settings);
+            final long warmupLagThreshold = INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING.get(settings);
+            final boolean warmupUseTimeLag = INGESTION_SOURCE_WARMUP_USE_TIME_LAG_SETTING.get(settings);
+            final long warmupTimeLagThreshold = INGESTION_SOURCE_WARMUP_TIME_LAG_THRESHOLD_SETTING.get(settings);
+            final boolean warmupFailOnTimeout = INGESTION_SOURCE_WARMUP_FAIL_ON_TIMEOUT_SETTING.get(settings);
+
             return new IngestionSource.Builder(ingestionSourceType).setParams(ingestionSourceParams)
                 .setPointerInitReset(pointerInitReset)
                 .setErrorStrategy(errorStrategy)
@@ -1324,6 +1332,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 .setAllActiveIngestion(allActiveIngestionEnabled)
                 .setPointerBasedLagUpdateInterval(pointerBasedLagUpdateInterval)
                 .setMapperType(mapperType)
+                .setWarmupEnabled(warmupEnabled)
+                .setWarmupTimeout(warmupTimeout)
+                .setWarmupLagThreshold(warmupLagThreshold)
+                .setWarmupUseTimeLag(warmupUseTimeLag)
+                .setWarmupTimeLagThreshold(warmupTimeLagThreshold)
+                .setWarmupFailOnTimeout(warmupFailOnTimeout)
                 .build();
         }
         return null;

@@ -451,6 +451,14 @@ public class DefaultStreamPoller implements StreamPoller {
             // Use time-based lag for Kinesis or when pointer lag unavailable
             currentLag = computeTimeBasedLag();
             threshold = warmupTimeLagThreshold;
+            logger.debug(
+                "Warmup using time-based lag for shard {} (warmupUseTimeLag={}, cachedPointerBasedLag={}), currentLag={}, threshold={}",
+                shardId,
+                warmupUseTimeLag,
+                cachedPointerBasedLag,
+                currentLag,
+                threshold
+            );
         } else {
             currentLag = cachedPointerBasedLag;
             threshold = warmupLagThreshold;
