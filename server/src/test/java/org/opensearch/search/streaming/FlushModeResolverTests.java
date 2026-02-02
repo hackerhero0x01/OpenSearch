@@ -9,6 +9,9 @@
 package org.opensearch.search.streaming;
 
 import org.opensearch.common.settings.Settings;
+import org.opensearch.search.aggregations.AggregatorFactories;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 /**
@@ -62,5 +65,52 @@ public class FlushModeResolverTests extends OpenSearchTestCase {
         StreamingCostMetrics smallTopN = new StreamingCostMetrics(true, 1);
         FlushMode result = FlushModeResolver.decideFlushMode(smallTopN, FlushMode.PER_SHARD, 100_000);
         assertEquals(FlushMode.PER_SEGMENT, result);
+    }
+
+    public void testIsStreamableSetsStreamingEnabledOnTermsAggregation() {
+        TermsAggregationBuilder termsAgg = new TermsAggregationBuilder("test_terms");
+        termsAgg.field("category");
+
+        // Before calling isStreamable, type should be "terms"
+        assertEquals("terms", termsAgg.getType());
+
+        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
+        aggBuilder.addAggregator(termsAgg);
+
+        // isStreamable should return true and set streamingEnabled on the TermsAggregationBuilder
+        assertTrue(FlushModeResolver.isStreamable(aggBuilder));
+
+        // After isStreamable, type should be "streaming_terms"
+        assertEquals("streaming_terms", termsAgg.getType());
+    }
+
+    public void testIsStreamableWithSubAggregationsSetsStreamingEnabled() {
+        TermsAggregationBuilder termsAgg = new TermsAggregationBuilder("test_terms");
+        termsAgg.field("category");
+        termsAgg.subAggregation(new MaxAggregationBuilder("max_price").field("price"));
+
+        assertEquals("terms", termsAgg.getType());
+
+        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
+        aggBuilder.addAggregator(termsAgg);
+
+        assertTrue(FlushModeResolver.isStreamable(aggBuilder));
+        assertEquals("streaming_terms", termsAgg.getType());
+    }
+
+    public void testIsStreamableReturnsFalseForNonTermsAggregation() {
+        MaxAggregationBuilder maxAgg = new MaxAggregationBuilder("max_value");
+        maxAgg.field("value");
+
+        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
+        aggBuilder.addAggregator(maxAgg);
+
+        // Non-terms aggregation at top level should not be streamable
+        assertFalse(FlushModeResolver.isStreamable(aggBuilder));
+    }
+
+    public void testIsStreamableReturnsFalseForNullOrEmptyAggregations() {
+        assertFalse(FlushModeResolver.isStreamable(null));
+        assertFalse(FlushModeResolver.isStreamable(new AggregatorFactories.Builder()));
     }
 }
