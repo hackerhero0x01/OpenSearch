@@ -26,6 +26,12 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_MAX
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_POLL_TIMEOUT;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_ENABLED_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_FAIL_ON_TIMEOUT_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_TIME_LAG_THRESHOLD_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_USE_TIME_LAG_SETTING;
 
 /**
  * Class encapsulating the configuration of an ingestion source.
@@ -43,6 +49,13 @@ public class IngestionSource {
     private final boolean allActiveIngestion;
     private final TimeValue pointerBasedLagUpdateInterval;
     private final IngestionMessageMapper.MapperType mapperType;
+    // Warmup configuration
+    private final boolean warmupEnabled;
+    private final TimeValue warmupTimeout;
+    private final long warmupLagThreshold;
+    private final boolean warmupUseTimeLag;
+    private final long warmupTimeLagThreshold;
+    private final boolean warmupFailOnTimeout;
 
     private IngestionSource(
         String type,
@@ -55,7 +68,13 @@ public class IngestionSource {
         int blockingQueueSize,
         boolean allActiveIngestion,
         TimeValue pointerBasedLagUpdateInterval,
-        IngestionMessageMapper.MapperType mapperType
+        IngestionMessageMapper.MapperType mapperType,
+        boolean warmupEnabled,
+        TimeValue warmupTimeout,
+        long warmupLagThreshold,
+        boolean warmupUseTimeLag,
+        long warmupTimeLagThreshold,
+        boolean warmupFailOnTimeout
     ) {
         this.type = type;
         this.pointerInitReset = pointerInitReset;
@@ -68,6 +87,12 @@ public class IngestionSource {
         this.allActiveIngestion = allActiveIngestion;
         this.pointerBasedLagUpdateInterval = pointerBasedLagUpdateInterval;
         this.mapperType = mapperType;
+        this.warmupEnabled = warmupEnabled;
+        this.warmupTimeout = warmupTimeout;
+        this.warmupLagThreshold = warmupLagThreshold;
+        this.warmupUseTimeLag = warmupUseTimeLag;
+        this.warmupTimeLagThreshold = warmupTimeLagThreshold;
+        this.warmupFailOnTimeout = warmupFailOnTimeout;
     }
 
     public String getType() {
@@ -114,6 +139,30 @@ public class IngestionSource {
         return mapperType;
     }
 
+    public boolean isWarmupEnabled() {
+        return warmupEnabled;
+    }
+
+    public TimeValue getWarmupTimeout() {
+        return warmupTimeout;
+    }
+
+    public long getWarmupLagThreshold() {
+        return warmupLagThreshold;
+    }
+
+    public boolean isWarmupUseTimeLag() {
+        return warmupUseTimeLag;
+    }
+
+    public long getWarmupTimeLagThreshold() {
+        return warmupTimeLagThreshold;
+    }
+
+    public boolean isWarmupFailOnTimeout() {
+        return warmupFailOnTimeout;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -129,7 +178,13 @@ public class IngestionSource {
             && Objects.equals(blockingQueueSize, ingestionSource.blockingQueueSize)
             && Objects.equals(allActiveIngestion, ingestionSource.allActiveIngestion)
             && Objects.equals(pointerBasedLagUpdateInterval, ingestionSource.pointerBasedLagUpdateInterval)
-            && Objects.equals(mapperType, ingestionSource.mapperType);
+            && Objects.equals(mapperType, ingestionSource.mapperType)
+            && Objects.equals(warmupEnabled, ingestionSource.warmupEnabled)
+            && Objects.equals(warmupTimeout, ingestionSource.warmupTimeout)
+            && Objects.equals(warmupLagThreshold, ingestionSource.warmupLagThreshold)
+            && Objects.equals(warmupUseTimeLag, ingestionSource.warmupUseTimeLag)
+            && Objects.equals(warmupTimeLagThreshold, ingestionSource.warmupTimeLagThreshold)
+            && Objects.equals(warmupFailOnTimeout, ingestionSource.warmupFailOnTimeout);
     }
 
     @Override
@@ -145,7 +200,13 @@ public class IngestionSource {
             blockingQueueSize,
             allActiveIngestion,
             pointerBasedLagUpdateInterval,
-            mapperType
+            mapperType,
+            warmupEnabled,
+            warmupTimeout,
+            warmupLagThreshold,
+            warmupUseTimeLag,
+            warmupTimeLagThreshold,
+            warmupFailOnTimeout
         );
     }
 
@@ -178,6 +239,18 @@ public class IngestionSource {
             + ", mapperType='"
             + mapperType
             + '\''
+            + ", warmupEnabled="
+            + warmupEnabled
+            + ", warmupTimeout="
+            + warmupTimeout
+            + ", warmupLagThreshold="
+            + warmupLagThreshold
+            + ", warmupUseTimeLag="
+            + warmupUseTimeLag
+            + ", warmupTimeLagThreshold="
+            + warmupTimeLagThreshold
+            + ", warmupFailOnTimeout="
+            + warmupFailOnTimeout
             + '}';
     }
 
@@ -240,6 +313,13 @@ public class IngestionSource {
             Settings.EMPTY
         );
         private IngestionMessageMapper.MapperType mapperType = INGESTION_SOURCE_MAPPER_TYPE_SETTING.getDefault(Settings.EMPTY);
+        // Warmup configuration
+        private boolean warmupEnabled = INGESTION_SOURCE_WARMUP_ENABLED_SETTING.getDefault(Settings.EMPTY);
+        private TimeValue warmupTimeout = INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING.getDefault(Settings.EMPTY);
+        private long warmupLagThreshold = INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING.getDefault(Settings.EMPTY);
+        private boolean warmupUseTimeLag = INGESTION_SOURCE_WARMUP_USE_TIME_LAG_SETTING.getDefault(Settings.EMPTY);
+        private long warmupTimeLagThreshold = INGESTION_SOURCE_WARMUP_TIME_LAG_THRESHOLD_SETTING.getDefault(Settings.EMPTY);
+        private boolean warmupFailOnTimeout = INGESTION_SOURCE_WARMUP_FAIL_ON_TIMEOUT_SETTING.getDefault(Settings.EMPTY);
 
         public Builder(String type) {
             this.type = type;
@@ -255,6 +335,12 @@ public class IngestionSource {
             this.allActiveIngestion = ingestionSource.allActiveIngestion;
             this.pointerBasedLagUpdateInterval = ingestionSource.pointerBasedLagUpdateInterval;
             this.mapperType = ingestionSource.mapperType;
+            this.warmupEnabled = ingestionSource.warmupEnabled;
+            this.warmupTimeout = ingestionSource.warmupTimeout;
+            this.warmupLagThreshold = ingestionSource.warmupLagThreshold;
+            this.warmupUseTimeLag = ingestionSource.warmupUseTimeLag;
+            this.warmupTimeLagThreshold = ingestionSource.warmupTimeLagThreshold;
+            this.warmupFailOnTimeout = ingestionSource.warmupFailOnTimeout;
         }
 
         public Builder setPointerInitReset(PointerInitReset pointerInitReset) {
@@ -312,6 +398,36 @@ public class IngestionSource {
             return this;
         }
 
+        public Builder setWarmupEnabled(boolean warmupEnabled) {
+            this.warmupEnabled = warmupEnabled;
+            return this;
+        }
+
+        public Builder setWarmupTimeout(TimeValue warmupTimeout) {
+            this.warmupTimeout = warmupTimeout;
+            return this;
+        }
+
+        public Builder setWarmupLagThreshold(long warmupLagThreshold) {
+            this.warmupLagThreshold = warmupLagThreshold;
+            return this;
+        }
+
+        public Builder setWarmupUseTimeLag(boolean warmupUseTimeLag) {
+            this.warmupUseTimeLag = warmupUseTimeLag;
+            return this;
+        }
+
+        public Builder setWarmupTimeLagThreshold(long warmupTimeLagThreshold) {
+            this.warmupTimeLagThreshold = warmupTimeLagThreshold;
+            return this;
+        }
+
+        public Builder setWarmupFailOnTimeout(boolean warmupFailOnTimeout) {
+            this.warmupFailOnTimeout = warmupFailOnTimeout;
+            return this;
+        }
+
         public IngestionSource build() {
             return new IngestionSource(
                 type,
@@ -324,7 +440,13 @@ public class IngestionSource {
                 blockingQueueSize,
                 allActiveIngestion,
                 pointerBasedLagUpdateInterval,
-                mapperType
+                mapperType,
+                warmupEnabled,
+                warmupTimeout,
+                warmupLagThreshold,
+                warmupUseTimeLag,
+                warmupTimeLagThreshold,
+                warmupFailOnTimeout
             );
         }
 

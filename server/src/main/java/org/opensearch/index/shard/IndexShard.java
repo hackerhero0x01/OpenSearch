@@ -2473,7 +2473,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // we may not expose operations that were indexed with a refresh listener that was immediately
             // responded to in addRefreshListener. The refresh must happen under the same mutex used in addRefreshListener
             // and before moving this shard to POST_RECOVERY state (i.e., allow to read from this shard).
-            getEngine().refresh("post_recovery");
+            Engine engine = getEngine();
+            engine.refresh("post_recovery");
+
+            // Wait for ingestion warmup if enabled (pull-based ingestion only)
+            if (engine instanceof IngestionEngine) {
+                IngestionEngine ingestionEngine = (IngestionEngine) engine;
+                try {
+                    logger.info("[{}] Waiting for ingestion warmup to complete", shardId);
+                    boolean completed = ingestionEngine.awaitWarmupComplete(
+                        indexSettings.getIndexMetadata().getIngestionSource().getWarmupTimeout().millis()
+                    );
+                    if (completed) {
+                        logger.info("[{}] Ingestion warmup complete, shard ready to serve", shardId);
+                    } else {
+                        if (ingestionEngine.isWarmupFailOnTimeout()) {
+                            throw new OpenSearchException("Ingestion warmup timed out for shard " + shardId);
+                        }
+                        logger.warn("[{}] Ingestion warmup timed out, proceeding anyway", shardId);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new OpenSearchException("Interrupted waiting for ingestion warmup", e);
+                }
+            }
+
             synchronized (mutex) {
                 if (state == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(shardId);

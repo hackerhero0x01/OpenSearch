@@ -147,6 +147,12 @@ public class IngestionEngine extends InternalEngine {
             .blockingQueueSize(ingestionSource.getBlockingQueueSize())
             .pointerBasedLagUpdateInterval(ingestionSource.getPointerBasedLagUpdateInterval().millis())
             .mapperType(ingestionSource.getMapperType())
+            .warmupEnabled(ingestionSource.isWarmupEnabled())
+            .warmupTimeoutMs(ingestionSource.getWarmupTimeout().millis())
+            .warmupLagThreshold(ingestionSource.getWarmupLagThreshold())
+            .warmupUseTimeLag(ingestionSource.isWarmupUseTimeLag())
+            .warmupTimeLagThreshold(ingestionSource.getWarmupTimeLagThreshold())
+            .warmupFailOnTimeout(ingestionSource.isWarmupFailOnTimeout())
             .build();
         registerStreamPollerListener();
 
@@ -653,5 +659,32 @@ public class IngestionEngine extends InternalEngine {
             streamPoller.isWriteBlockEnabled(),
             shardPointer != null ? shardPointer.toString() : ""
         );
+    }
+
+    /**
+     * Returns true if the warmup phase is complete and the shard is ready to serve.
+     */
+    public boolean isWarmupComplete() {
+        return streamPoller.isWarmupComplete();
+    }
+
+    /**
+     * Block until warmup is complete or timeout occurs.
+     * @param timeoutMs maximum time to wait in milliseconds
+     * @return true if warmup completed, false if timeout
+     * @throws InterruptedException if the thread is interrupted while waiting
+     */
+    public boolean awaitWarmupComplete(long timeoutMs) throws InterruptedException {
+        return streamPoller.awaitWarmupComplete(timeoutMs);
+    }
+
+    /**
+     * Returns true if shard initialization should fail when warmup times out.
+     */
+    public boolean isWarmupFailOnTimeout() {
+        if (streamPoller instanceof DefaultStreamPoller) {
+            return ((DefaultStreamPoller) streamPoller).isWarmupFailOnTimeout();
+        }
+        return false;
     }
 }

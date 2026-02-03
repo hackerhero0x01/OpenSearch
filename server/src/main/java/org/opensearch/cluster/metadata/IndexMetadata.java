@@ -993,6 +993,79 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
+     * Defines if warmup phase is enabled for pull-based ingestion. When enabled, shards will wait for
+     * lag to catch up before serving queries after node restart or shard relocation.
+     */
+    public static final String SETTING_INGESTION_SOURCE_WARMUP_ENABLED = "index.ingestion_source.warmup.enabled";
+    public static final Setting<Boolean> INGESTION_SOURCE_WARMUP_ENABLED_SETTING = Setting.boolSetting(
+        SETTING_INGESTION_SOURCE_WARMUP_ENABLED,
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * Defines the maximum time to wait for lag to catch up during warmup phase.
+     */
+    public static final String SETTING_INGESTION_SOURCE_WARMUP_TIMEOUT = "index.ingestion_source.warmup.timeout";
+    public static final Setting<TimeValue> INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        SETTING_INGESTION_SOURCE_WARMUP_TIMEOUT,
+        new TimeValue(5, TimeUnit.MINUTES),
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * Defines the acceptable pointer-based lag threshold. Warmup completes when lag is at or below this value.
+     * A value of 0 means fully caught up (no lag).
+     */
+    public static final String SETTING_INGESTION_SOURCE_WARMUP_LAG_THRESHOLD = "index.ingestion_source.warmup.lag_threshold";
+    public static final Setting<Long> INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING = Setting.longSetting(
+        SETTING_INGESTION_SOURCE_WARMUP_LAG_THRESHOLD,
+        0L,
+        0L,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * Defines if time-based lag should be used instead of pointer-based lag for warmup.
+     * This is useful for sources like Kinesis that don't support pointer-based lag calculation.
+     */
+    public static final String SETTING_INGESTION_SOURCE_WARMUP_USE_TIME_LAG = "index.ingestion_source.warmup.use_time_lag";
+    public static final Setting<Boolean> INGESTION_SOURCE_WARMUP_USE_TIME_LAG_SETTING = Setting.boolSetting(
+        SETTING_INGESTION_SOURCE_WARMUP_USE_TIME_LAG,
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * Defines the acceptable time-based lag threshold in milliseconds. Used when warmup.use_time_lag is true.
+     * Warmup completes when time lag is at or below this value.
+     */
+    public static final String SETTING_INGESTION_SOURCE_WARMUP_TIME_LAG_THRESHOLD = "index.ingestion_source.warmup.time_lag_threshold_ms";
+    public static final Setting<Long> INGESTION_SOURCE_WARMUP_TIME_LAG_THRESHOLD_SETTING = Setting.longSetting(
+        SETTING_INGESTION_SOURCE_WARMUP_TIME_LAG_THRESHOLD,
+        0L,
+        0L,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * Defines if shard initialization should fail when warmup times out.
+     * If false, shard proceeds with a warning. If true, shard initialization fails.
+     */
+    public static final String SETTING_INGESTION_SOURCE_WARMUP_FAIL_ON_TIMEOUT = "index.ingestion_source.warmup.fail_on_timeout";
+    public static final Setting<Boolean> INGESTION_SOURCE_WARMUP_FAIL_ON_TIMEOUT_SETTING = Setting.boolSetting(
+        SETTING_INGESTION_SOURCE_WARMUP_FAIL_ON_TIMEOUT,
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
      * an internal index format description, allowing us to find out if this index is upgraded or needs upgrading
      */
     private static final String INDEX_FORMAT = "index.format";
@@ -1240,6 +1313,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final TimeValue pointerBasedLagUpdateInterval = INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING.get(settings);
             final IngestionMessageMapper.MapperType mapperType = INGESTION_SOURCE_MAPPER_TYPE_SETTING.get(settings);
 
+            // Warmup settings
+            final boolean warmupEnabled = INGESTION_SOURCE_WARMUP_ENABLED_SETTING.get(settings);
+            final TimeValue warmupTimeout = INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING.get(settings);
+            final long warmupLagThreshold = INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING.get(settings);
+            final boolean warmupUseTimeLag = INGESTION_SOURCE_WARMUP_USE_TIME_LAG_SETTING.get(settings);
+            final long warmupTimeLagThreshold = INGESTION_SOURCE_WARMUP_TIME_LAG_THRESHOLD_SETTING.get(settings);
+            final boolean warmupFailOnTimeout = INGESTION_SOURCE_WARMUP_FAIL_ON_TIMEOUT_SETTING.get(settings);
+
             return new IngestionSource.Builder(ingestionSourceType).setParams(ingestionSourceParams)
                 .setPointerInitReset(pointerInitReset)
                 .setErrorStrategy(errorStrategy)
@@ -1250,6 +1331,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 .setAllActiveIngestion(allActiveIngestionEnabled)
                 .setPointerBasedLagUpdateInterval(pointerBasedLagUpdateInterval)
                 .setMapperType(mapperType)
+                .setWarmupEnabled(warmupEnabled)
+                .setWarmupTimeout(warmupTimeout)
+                .setWarmupLagThreshold(warmupLagThreshold)
+                .setWarmupUseTimeLag(warmupUseTimeLag)
+                .setWarmupTimeLagThreshold(warmupTimeLagThreshold)
+                .setWarmupFailOnTimeout(warmupFailOnTimeout)
                 .build();
         }
         return null;
