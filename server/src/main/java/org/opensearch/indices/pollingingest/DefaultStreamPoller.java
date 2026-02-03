@@ -251,6 +251,10 @@ public class DefaultStreamPoller implements StreamPoller {
                 // Initialize/reinitialization consumer
                 if (this.consumer == null || reinitializeConsumer) {
                     handleConsumerInitialization();
+                    // Still check warmup status even if consumer init fails, so timeout can trigger
+                    if (!warmupComplete && warmupEnabled) {
+                        checkWarmupStatus();
+                    }
                     continue;
                 }
 
