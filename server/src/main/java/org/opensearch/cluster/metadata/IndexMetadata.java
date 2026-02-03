@@ -1044,8 +1044,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * Defines the acceptable time-based lag threshold in milliseconds. Used when warmup.use_time_lag is true.
      * Warmup completes when time lag is at or below this value.
      */
-    public static final String SETTING_INGESTION_SOURCE_WARMUP_TIME_LAG_THRESHOLD =
-        "index.ingestion_source.warmup.time_lag_threshold_ms";
+    public static final String SETTING_INGESTION_SOURCE_WARMUP_TIME_LAG_THRESHOLD = "index.ingestion_source.warmup.time_lag_threshold_ms";
     public static final Setting<Long> INGESTION_SOURCE_WARMUP_TIME_LAG_THRESHOLD_SETTING = Setting.longSetting(
         SETTING_INGESTION_SOURCE_WARMUP_TIME_LAG_THRESHOLD,
         0L,

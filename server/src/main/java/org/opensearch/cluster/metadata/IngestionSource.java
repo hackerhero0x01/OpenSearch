@@ -29,8 +29,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_POL
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_ENABLED_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_FAIL_ON_TIMEOUT_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING;
-import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_TIME_LAG_THRESHOLD_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_TIME_LAG_THRESHOLD_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_USE_TIME_LAG_SETTING;
 
 /**

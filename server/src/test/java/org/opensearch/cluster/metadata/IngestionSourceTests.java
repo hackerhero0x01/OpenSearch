@@ -201,8 +201,7 @@ public class IngestionSourceTests extends OpenSearchTestCase {
     }
 
     public void testWarmupConfigurationCopiedByBuilder() {
-        IngestionSource original = new IngestionSource.Builder("type")
-            .setWarmupEnabled(true)
+        IngestionSource original = new IngestionSource.Builder("type").setWarmupEnabled(true)
             .setWarmupTimeout(TimeValue.timeValueMinutes(10))
             .setWarmupLagThreshold(500)
             .setWarmupUseTimeLag(true)

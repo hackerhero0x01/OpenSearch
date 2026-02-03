@@ -426,11 +426,7 @@ public class DefaultStreamPoller implements StreamPoller {
             while (!warmupComplete) {
                 long remaining = deadline - System.currentTimeMillis();
                 if (remaining <= 0) {
-                    logger.warn(
-                        "Warmup timeout for shard {} - proceeding with current lag (warmupComplete={})",
-                        shardId,
-                        warmupComplete
-                    );
+                    logger.warn("Warmup timeout for shard {} - proceeding with current lag (warmupComplete={})", shardId, warmupComplete);
                     return false;
                 }
                 warmupLock.wait(Math.min(remaining, 1000)); // Wake up periodically to check
@@ -472,12 +468,7 @@ public class DefaultStreamPoller implements StreamPoller {
             synchronized (warmupLock) {
                 warmupComplete = true;
                 warmupLock.notifyAll();
-                logger.info(
-                    "Warmup complete for shard {} - lag {} is at or below threshold {}",
-                    shardId,
-                    currentLag,
-                    threshold
-                );
+                logger.info("Warmup complete for shard {} - lag {} is at or below threshold {}", shardId, currentLag, threshold);
             }
         } else if (timeoutReached) {
             synchronized (warmupLock) {
