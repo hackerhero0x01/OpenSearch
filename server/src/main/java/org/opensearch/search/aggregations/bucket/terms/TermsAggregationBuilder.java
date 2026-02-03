@@ -390,9 +390,18 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     /**
      * Set whether streaming aggregation is enabled
      */
+    @Override
     public TermsAggregationBuilder streamingEnabled(boolean streamingEnabled) {
         this.streamingEnabled = streamingEnabled;
         return this;
+    }
+
+    /**
+     * Returns whether streaming mode is enabled for this aggregation.
+     */
+    @Override
+    public boolean isStreamingEnabled() {
+        return streamingEnabled;
     }
 
     @Override

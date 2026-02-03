@@ -127,7 +127,7 @@ public final class FlushModeResolver {
             if (!isTopLevelStreamable(agg)) {
                 return false;
             }
-        ((TermsAggregationBuilder) agg).streamingEnabled(true);
+            agg.streamingEnabled(true);
         }
         return true;
     }

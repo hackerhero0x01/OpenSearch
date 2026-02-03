@@ -186,6 +186,25 @@ public abstract class AggregationBuilder
     public abstract BucketCardinality bucketCardinality();
 
     /**
+     * Enables or disables streaming mode for this aggregation.
+     *
+     * @param enabled whether streaming should be enabled
+     * @return this builder for chaining
+     */
+    public AggregationBuilder streamingEnabled(boolean enabled) {
+        return this;
+    }
+
+    /**
+     * Returns whether streaming mode is enabled for this aggregation.
+     *
+     * @return true if streaming is enabled, false otherwise (default)
+     */
+    public boolean isStreamingEnabled() {
+        return false;
+    }
+
+    /**
      * Common xcontent fields shared among aggregator builders
      *
      * @opensearch.internal
