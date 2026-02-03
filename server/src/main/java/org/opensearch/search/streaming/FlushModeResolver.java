@@ -127,9 +127,23 @@ public final class FlushModeResolver {
             if (!isTopLevelStreamable(agg)) {
                 return false;
             }
-            agg.streamingEnabled(true);
         }
         return true;
+    }
+
+    /**
+     * Enables streaming mode on all top-level aggregations that support it.
+     * This should be called after {@link #isStreamable(AggregatorFactories.Builder)} returns true.
+     *
+     * @param aggregations the aggregation factories to enable streaming on
+     */
+    public static void enableStreaming(AggregatorFactories.Builder aggregations) {
+        if (aggregations == null) {
+            return;
+        }
+        for (AggregationBuilder agg : aggregations.getAggregatorFactories()) {
+            agg.streamingEnabled(true);
+        }
     }
 
     private static boolean isTopLevelStreamable(AggregationBuilder agg) {

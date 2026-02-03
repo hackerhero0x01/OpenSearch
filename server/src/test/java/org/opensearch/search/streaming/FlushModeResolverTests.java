@@ -67,7 +67,7 @@ public class FlushModeResolverTests extends OpenSearchTestCase {
         assertEquals(FlushMode.PER_SEGMENT, result);
     }
 
-    public void testIsStreamableSetsStreamingEnabledOnTermsAggregation() {
+    public void testIsStreamableDoesNotModifyAggregation() {
         TermsAggregationBuilder termsAgg = new TermsAggregationBuilder("test_terms");
         termsAgg.field("category");
 
@@ -78,15 +78,36 @@ public class FlushModeResolverTests extends OpenSearchTestCase {
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(termsAgg);
 
-        // isStreamable should return true and set streamingEnabled on the TermsAggregationBuilder
+        // isStreamable should return true but NOT modify the aggregation
         assertTrue(FlushModeResolver.isStreamable(aggBuilder));
 
-        // After isStreamable, streaming should be enabled
+        // After isStreamable, streaming should still be disabled (no side effects)
+        assertFalse(termsAgg.isStreamingEnabled());
+        assertEquals("terms", termsAgg.getType());
+    }
+
+    public void testEnableStreamingSetsStreamingEnabledOnTermsAggregation() {
+        TermsAggregationBuilder termsAgg = new TermsAggregationBuilder("test_terms");
+        termsAgg.field("category");
+
+        assertFalse(termsAgg.isStreamingEnabled());
+        assertEquals("terms", termsAgg.getType());
+
+        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
+        aggBuilder.addAggregator(termsAgg);
+
+        // First check it's streamable
+        assertTrue(FlushModeResolver.isStreamable(aggBuilder));
+
+        // Then enable streaming
+        FlushModeResolver.enableStreaming(aggBuilder);
+
+        // After enableStreaming, streaming should be enabled
         assertTrue(termsAgg.isStreamingEnabled());
         assertEquals("streaming_terms", termsAgg.getType());
     }
 
-    public void testIsStreamableWithSubAggregationsSetsStreamingEnabled() {
+    public void testEnableStreamingWithSubAggregations() {
         TermsAggregationBuilder termsAgg = new TermsAggregationBuilder("test_terms");
         termsAgg.field("category");
         termsAgg.subAggregation(new MaxAggregationBuilder("max_price").field("price"));
@@ -97,7 +118,15 @@ public class FlushModeResolverTests extends OpenSearchTestCase {
         aggBuilder.addAggregator(termsAgg);
 
         assertTrue(FlushModeResolver.isStreamable(aggBuilder));
+        FlushModeResolver.enableStreaming(aggBuilder);
+
+        assertTrue(termsAgg.isStreamingEnabled());
         assertEquals("streaming_terms", termsAgg.getType());
+    }
+
+    public void testEnableStreamingHandlesNull() {
+        // Should not throw
+        FlushModeResolver.enableStreaming(null);
     }
 
     public void testIsStreamableReturnsFalseForNonTermsAggregation() {
