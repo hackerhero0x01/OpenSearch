@@ -387,6 +387,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         this.showTermDocCountError = showTermDocCountError;
         return this;
     }
+
     /**
      * Set whether streaming aggregation is enabled
      */
