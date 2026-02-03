@@ -28,8 +28,10 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Default implementation of {@link StreamPoller}
@@ -66,7 +68,7 @@ public class DefaultStreamPoller implements StreamPoller {
     private final boolean warmupFailOnTimeout;
     private volatile boolean warmupComplete = false;
     private volatile long warmupStartTime = 0;
-    private final Object warmupLock = new Object();
+    private final CountDownLatch warmupLatch = new CountDownLatch(1);
 
     @Nullable
     private IngestionShardConsumer consumer;
@@ -421,18 +423,11 @@ public class DefaultStreamPoller implements StreamPoller {
             return true;
         }
 
-        synchronized (warmupLock) {
-            long deadline = System.currentTimeMillis() + timeoutMs;
-            while (!warmupComplete) {
-                long remaining = deadline - System.currentTimeMillis();
-                if (remaining <= 0) {
-                    logger.warn("Warmup timeout for shard {} - proceeding with current lag (warmupComplete={})", shardId, warmupComplete);
-                    return false;
-                }
-                warmupLock.wait(Math.min(remaining, 1000)); // Wake up periodically to check
-            }
-            return true;
+        boolean completed = warmupLatch.await(timeoutMs, TimeUnit.MILLISECONDS);
+        if (!completed) {
+            logger.warn("Warmup timeout for shard {} - proceeding with current lag (warmupComplete={})", shardId, warmupComplete);
         }
+        return completed;
     }
 
     /**
@@ -465,23 +460,19 @@ public class DefaultStreamPoller implements StreamPoller {
         boolean timeoutReached = elapsedTime >= warmupTimeoutMs;
 
         if (lagBelowThreshold) {
-            synchronized (warmupLock) {
-                warmupComplete = true;
-                warmupLock.notifyAll();
-                logger.info("Warmup complete for shard {} - lag {} is at or below threshold {}", shardId, currentLag, threshold);
-            }
+            warmupComplete = true;
+            warmupLatch.countDown();
+            logger.info("Warmup complete for shard {} - lag {} is at or below threshold {}", shardId, currentLag, threshold);
         } else if (timeoutReached) {
-            synchronized (warmupLock) {
-                warmupComplete = true;
-                warmupLock.notifyAll();
-                logger.warn(
-                    "Warmup timeout for shard {} after {}ms - proceeding with lag {} (threshold was {})",
-                    shardId,
-                    elapsedTime,
-                    currentLag,
-                    threshold
-                );
-            }
+            warmupComplete = true;
+            warmupLatch.countDown();
+            logger.warn(
+                "Warmup timeout for shard {} after {}ms - proceeding with lag {} (threshold was {})",
+                shardId,
+                elapsedTime,
+                currentLag,
+                threshold
+            );
         }
     }
 
