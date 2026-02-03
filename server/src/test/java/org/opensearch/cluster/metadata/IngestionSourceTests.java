@@ -108,7 +108,7 @@ public class IngestionSourceTests extends OpenSearchTestCase {
             .setErrorStrategy(DROP)
             .build();
         String expected =
-            "IngestionSource{type='type',pointer_init_reset='PointerInitReset{type='RESET_BY_OFFSET', value=1000}',error_strategy='DROP', params={key=value}, maxPollSize=1000, pollTimeout=1000, numProcessorThreads=1, blockingQueueSize=100, allActiveIngestion=false, pointerBasedLagUpdateInterval=10s, mapperType='DEFAULT', warmupEnabled=true, warmupTimeout=5m, warmupLagThreshold=0, warmupUseTimeLag=false, warmupTimeLagThreshold=0, warmupFailOnTimeout=false}";
+            "IngestionSource{type='type',pointer_init_reset='PointerInitReset{type='RESET_BY_OFFSET', value=1000}',error_strategy='DROP', params={key=value}, maxPollSize=1000, pollTimeout=1000, numProcessorThreads=1, blockingQueueSize=100, allActiveIngestion=false, pointerBasedLagUpdateInterval=10s, mapperType='DEFAULT', warmupEnabled=false, warmupTimeout=5m, warmupLagThreshold=0, warmupUseTimeLag=false, warmupTimeLagThreshold=0, warmupFailOnTimeout=false}";
         assertEquals(expected, source.toString());
     }
 
@@ -166,7 +166,7 @@ public class IngestionSourceTests extends OpenSearchTestCase {
         // Test default warmup values
         IngestionSource source = new IngestionSource.Builder("type").build();
 
-        assertTrue("Warmup should be enabled by default", source.isWarmupEnabled());
+        assertFalse("Warmup should be disabled by default (opt-in)", source.isWarmupEnabled());
         assertEquals(TimeValue.timeValueMinutes(5), source.getWarmupTimeout());
         assertEquals(0, source.getWarmupLagThreshold());
         assertFalse("Should not use time lag by default", source.isWarmupUseTimeLag());
