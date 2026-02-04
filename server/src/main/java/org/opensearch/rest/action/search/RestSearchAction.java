@@ -153,7 +153,6 @@ public class RestSearchAction extends BaseRestHandler {
         if (clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED)) {
             if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
                 if (canUseStreamSearch(searchRequest)) {
-                    FlushModeResolver.enableStreaming(searchRequest.source().aggregations());
                     return channel -> {
                         RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
                         cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
