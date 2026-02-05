@@ -607,6 +607,11 @@ public class AllocationService {
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
     }
 
+    private boolean isShardFromClosedIndex(ShardRouting shardRouting, RoutingAllocation allocation) {
+        final IndexMetadata indexMd = allocation.metadata().index(shardRouting.index());
+        return indexMd != null && indexMd.getState() == IndexMetadata.State.CLOSE;
+    }
+
     private void allocateExistingUnassignedShards(RoutingAllocation allocation) {
         allocation.routingNodes().unassigned().sort(PriorityComparator.getAllocationComparator(allocation)); // sort for priority ordering
 
@@ -630,6 +635,10 @@ public class AllocationService {
         final RoutingNodes.UnassignedShards.UnassignedIterator primaryIterator = allocation.routingNodes().unassigned().iterator();
         while (primaryIterator.hasNext()) {
             final ShardRouting shardRouting = primaryIterator.next();
+            // Skip shards from closed indices - they should remain unassigned
+            if (isShardFromClosedIndex(shardRouting, allocation)) {
+                continue;
+            }
             if (shardRouting.primary()) {
                 getAllocatorForShard(shardRouting, allocation).allocateUnassigned(shardRouting, allocation, primaryIterator);
             }
@@ -642,6 +651,10 @@ public class AllocationService {
         final RoutingNodes.UnassignedShards.UnassignedIterator replicaIterator = allocation.routingNodes().unassigned().iterator();
         while (replicaIterator.hasNext()) {
             final ShardRouting shardRouting = replicaIterator.next();
+            // Skip shards from closed indices - they should remain unassigned
+            if (isShardFromClosedIndex(shardRouting, allocation)) {
+                continue;
+            }
             if (shardRouting.primary() == false) {
                 getAllocatorForShard(shardRouting, allocation).allocateUnassigned(shardRouting, allocation, replicaIterator);
             }
