@@ -31,11 +31,7 @@ public class BoostingQueryBuilderProtoConverterTests extends OpenSearchTestCase 
 
     public void testGetHandledQueryCase() {
         // Test that the converter returns the correct QueryContainerCase
-        assertEquals(
-            "Converter should handle BOOSTING case",
-            QueryContainer.QueryContainerCase.BOOSTING,
-            converter.getHandledQueryCase()
-        );
+        assertEquals("Converter should handle BOOSTING case", QueryContainer.QueryContainerCase.BOOSTING, converter.getHandledQueryCase());
     }
 
     public void testFromProto() {
@@ -45,10 +41,7 @@ public class BoostingQueryBuilderProtoConverterTests extends OpenSearchTestCase 
             .setNegative(
                 QueryContainer.newBuilder()
                     .setTerm(
-                        TermQuery.newBuilder()
-                            .setField("field1")
-                            .setValue(FieldValue.newBuilder().setString("value1").build())
-                            .build()
+                        TermQuery.newBuilder().setField("field1").setValue(FieldValue.newBuilder().setString("value1").build()).build()
                     )
                     .build()
             )

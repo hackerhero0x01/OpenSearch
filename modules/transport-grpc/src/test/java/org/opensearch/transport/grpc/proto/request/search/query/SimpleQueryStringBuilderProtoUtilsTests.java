@@ -10,7 +10,6 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.index.query.Operator;
 import org.opensearch.index.query.SimpleQueryStringBuilder;
-import org.opensearch.index.query.SimpleQueryStringFlag;
 import org.opensearch.protobufs.MinimumShouldMatch;
 import org.opensearch.protobufs.SimpleQueryStringFlags;
 import org.opensearch.protobufs.SimpleQueryStringQuery;
@@ -121,11 +120,7 @@ public class SimpleQueryStringBuilderProtoUtilsTests extends OpenSearchTestCase 
             () -> SimpleQueryStringBuilderProtoUtils.fromProto(query)
         );
 
-        assertEquals(
-            "Exception message should match constant",
-            SimpleQueryStringBuilder.QUERY_TEXT_MISSING,
-            exception.getMessage()
-        );
+        assertEquals("Exception message should match constant", SimpleQueryStringBuilder.QUERY_TEXT_MISSING, exception.getMessage());
     }
 
     public void testFromProtoWithEmptyQuery() {
@@ -138,20 +133,12 @@ public class SimpleQueryStringBuilderProtoUtilsTests extends OpenSearchTestCase 
             () -> SimpleQueryStringBuilderProtoUtils.fromProto(query)
         );
 
-        assertEquals(
-            "Exception message should match constant",
-            SimpleQueryStringBuilder.QUERY_TEXT_MISSING,
-            exception.getMessage()
-        );
+        assertEquals("Exception message should match constant", SimpleQueryStringBuilder.QUERY_TEXT_MISSING, exception.getMessage());
     }
 
     public void testFromProtoWithFieldsNoBoost() {
         // Create a protobuf SimpleQueryStringQuery with fields without boost notation
-        SimpleQueryStringQuery query = SimpleQueryStringQuery.newBuilder()
-            .setQuery("test")
-            .addFields("title")
-            .addFields("content")
-            .build();
+        SimpleQueryStringQuery query = SimpleQueryStringQuery.newBuilder().setQuery("test").addFields("title").addFields("content").build();
 
         // Call the method under test
         SimpleQueryStringBuilder result = SimpleQueryStringBuilderProtoUtils.fromProto(query);
@@ -167,10 +154,7 @@ public class SimpleQueryStringBuilderProtoUtilsTests extends OpenSearchTestCase 
 
     public void testFromProtoWithInvalidBoostNotation() {
         // Create a protobuf SimpleQueryStringQuery with invalid boost notation
-        SimpleQueryStringQuery query = SimpleQueryStringQuery.newBuilder()
-            .setQuery("test")
-            .addFields("title^invalid")
-            .build();
+        SimpleQueryStringQuery query = SimpleQueryStringQuery.newBuilder().setQuery("test").addFields("title^invalid").build();
 
         // Call the method under test - should default to 1.0
         SimpleQueryStringBuilder result = SimpleQueryStringBuilderProtoUtils.fromProto(query);
@@ -198,8 +182,7 @@ public class SimpleQueryStringBuilderProtoUtilsTests extends OpenSearchTestCase 
             org.opensearch.protobufs.SimpleQueryStringFlag.SIMPLE_QUERY_STRING_FLAG_WHITESPACE,
             org.opensearch.protobufs.SimpleQueryStringFlag.SIMPLE_QUERY_STRING_FLAG_FUZZY,
             org.opensearch.protobufs.SimpleQueryStringFlag.SIMPLE_QUERY_STRING_FLAG_NEAR,
-            org.opensearch.protobufs.SimpleQueryStringFlag.SIMPLE_QUERY_STRING_FLAG_SLOP
-        };
+            org.opensearch.protobufs.SimpleQueryStringFlag.SIMPLE_QUERY_STRING_FLAG_SLOP };
 
         for (org.opensearch.protobufs.SimpleQueryStringFlag protoFlag : protoFlags) {
             SimpleQueryStringQuery query = SimpleQueryStringQuery.newBuilder()

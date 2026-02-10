@@ -14,9 +14,7 @@ import org.opensearch.index.query.SimpleQueryStringFlag;
 import org.opensearch.protobufs.SimpleQueryStringQuery;
 import org.opensearch.transport.grpc.proto.request.search.OperatorProtoUtils;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**

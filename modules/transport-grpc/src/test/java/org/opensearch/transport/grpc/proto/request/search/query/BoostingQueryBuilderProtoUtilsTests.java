@@ -103,10 +103,7 @@ public class BoostingQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithMissingNegativeQuery() {
         // Create a protobuf BoostingQuery without negative query (empty QueryContainer)
-        BoostingQuery boostingQuery = BoostingQuery.newBuilder()
-            .setPositive(createMatchAllQueryContainer())
-            .setNegativeBoost(0.5f)
-            .build();
+        BoostingQuery boostingQuery = BoostingQuery.newBuilder().setPositive(createMatchAllQueryContainer()).setNegativeBoost(0.5f).build();
 
         // Call the method under test and expect exception
         // Note: Since positive/negative are required proto fields, they default to empty QueryContainer
@@ -196,21 +193,11 @@ public class BoostingQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithComplexNestedQueries() {
         // Create nested queries for both positive and negative
         QueryContainer positiveQuery = QueryContainer.newBuilder()
-            .setTerm(
-                TermQuery.newBuilder()
-                    .setField("status")
-                    .setValue(FieldValue.newBuilder().setString("active").build())
-                    .build()
-            )
+            .setTerm(TermQuery.newBuilder().setField("status").setValue(FieldValue.newBuilder().setString("active").build()).build())
             .build();
 
         QueryContainer negativeQuery = QueryContainer.newBuilder()
-            .setTerm(
-                TermQuery.newBuilder()
-                    .setField("category")
-                    .setValue(FieldValue.newBuilder().setString("spam").build())
-                    .build()
-            )
+            .setTerm(TermQuery.newBuilder().setField("category").setValue(FieldValue.newBuilder().setString("spam").build()).build())
             .build();
 
         BoostingQuery boostingQuery = BoostingQuery.newBuilder()
@@ -250,12 +237,7 @@ public class BoostingQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     private QueryContainer createTermQueryContainer(String field, String value) {
         return QueryContainer.newBuilder()
-            .setTerm(
-                TermQuery.newBuilder()
-                    .setField(field)
-                    .setValue(FieldValue.newBuilder().setString(value).build())
-                    .build()
-            )
+            .setTerm(TermQuery.newBuilder().setField(field).setValue(FieldValue.newBuilder().setString(value).build()).build())
             .build();
     }
 }
