@@ -109,7 +109,7 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
                 } finally {
                     SearchSourceBuilder source = getRequest().source();
                     if (source != null && source.aggregations() != null) {
-                        FlushModeResolver.enableStreaming(source.aggregations());
+                        FlushModeResolver.setStreamingFlag(source.aggregations());
                     }
                     executeNext(pendingExecutions, thread);
                 }
