@@ -33,12 +33,14 @@ package org.opensearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.MatchAllQueryBuilder;
@@ -47,13 +49,13 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.aggregations.Aggregator.BucketComparator;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 import org.opensearch.search.sort.SortOrder;
 import org.junit.Before;
 
 import java.io.IOException;
 
-import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
@@ -109,7 +111,6 @@ public class FilterAggregatorTests extends AggregatorTestCase {
             int value = randomInt(maxTerm - 1);
             QueryBuilder filter = QueryBuilders.termQuery("field", Integer.toString(value));
             FilterAggregationBuilder builder = new FilterAggregationBuilder("test", filter);
-
             final InternalFilter response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
             assertEquals(response.getDocCount(), (long) expectedBucketCount[value]);
             if (expectedBucketCount[value] > 0) {
@@ -126,11 +127,15 @@ public class FilterAggregatorTests extends AggregatorTestCase {
     public void testBucketComparator() throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                indexWriter.addDocument(singleton(new Field("field", "1", KeywordFieldMapper.Defaults.FIELD_TYPE)));
+                Document document = new Document();
+                document.add(new Field("field", "1", KeywordFieldMapper.Defaults.FIELD_TYPE));
+                document.add(new SortedDocValuesField("field", new BytesRef("1")));
+                indexWriter.addDocument(document);
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
                 FilterAggregationBuilder builder = new FilterAggregationBuilder("test", new MatchAllQueryBuilder());
+                builder.subAggregation(new CardinalityAggregationBuilder("sub_card").field("field"));
                 FilterAggregator agg = createAggregator(builder, indexSearcher, fieldType);
                 agg.preCollection();
                 LeafBucketCollector collector = agg.getLeafCollector(indexReader.leaves().get(0));
@@ -154,6 +159,11 @@ public class FilterAggregatorTests extends AggregatorTestCase {
                             + "Either drop the key (a la \"test\") or change it to \"doc_count\" (a la \"test.doc_count\") or \"key\"."
                     )
                 );
+
+                // testing the sub collector's collectDebugInfo is being called
+                int[] callCount = new int[] { 0 };
+                agg.collectDebugInfo((s, o) -> callCount[0] += 1);
+                assertTrue(callCount[0] > 0);
             }
         }
     }

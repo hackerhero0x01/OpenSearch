@@ -48,6 +48,7 @@ import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -112,5 +113,13 @@ public class FilterAggregator extends BucketsAggregator implements SingleBucketA
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalFilter(name, 0, buildEmptySubAggregations(), metadata());
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        for (Aggregator aggregator : subAggregators) {
+            aggregator.collectDebugInfo(add);
+        }
     }
 }
