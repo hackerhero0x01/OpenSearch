@@ -147,10 +147,7 @@ public class IngestionEngine extends InternalEngine {
             .blockingQueueSize(ingestionSource.getBlockingQueueSize())
             .pointerBasedLagUpdateInterval(ingestionSource.getPointerBasedLagUpdateInterval().millis())
             .mapperType(ingestionSource.getMapperType())
-            .warmupEnabled(ingestionSource.isWarmupEnabled())
-            .warmupTimeoutMs(ingestionSource.getWarmupTimeout().millis())
-            .warmupLagThreshold(ingestionSource.getWarmupLagThreshold())
-            .warmupFailOnTimeout(ingestionSource.isWarmupFailOnTimeout())
+            .warmupConfig(ingestionSource.getWarmupConfig())
             .build();
         registerStreamPollerListener();
 
