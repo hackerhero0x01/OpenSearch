@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.example.stream;
+package org.opensearch.example.stream.basic;
 
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -14,17 +14,29 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-class StreamDataResponse extends ActionResponse {
+/**
+ * Example class
+ */
+/** Example */
+public class StreamDataResponse extends ActionResponse {
     private final String message;
     private final int sequence;
     private final boolean isLast;
 
+    /**
+     * Constructor
+     */
+    /** Method */
     public StreamDataResponse(String message, int sequence, boolean isLast) {
         this.message = message;
         this.sequence = sequence;
         this.isLast = isLast;
     }
 
+    /**
+     * Constructor
+     */
+    /** Method */
     public StreamDataResponse(StreamInput in) throws IOException {
         super(in);
         message = in.readString();
@@ -33,20 +45,40 @@ class StreamDataResponse extends ActionResponse {
     }
 
     @Override
+    /**
+     * Method
+     * @return result
+     */
+    /** Method */
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(message);
         out.writeInt(sequence);
         out.writeBoolean(isLast);
     }
 
+    /**
+     * Method
+     * @return result
+     */
+    /** Method */
     public String getMessage() {
         return message;
     }
 
+    /**
+     * Method
+     * @return result
+     */
+    /** Method */
     public int getSequence() {
         return sequence;
     }
 
+    /**
+     * Method
+     * @return result
+     */
+    /** Method */
     public boolean isLast() {
         return isLast;
     }
