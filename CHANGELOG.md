@@ -24,7 +24,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix CriteriaBasedCodec to work with delegate codec. ([#20442](https://github.com/opensearch-project/OpenSearch/pull/20442))
 - Fix WLM workload group creation failing due to updated_at clock skew ([#20486](https://github.com/opensearch-project/OpenSearch/pull/20486))
 - Fix SLF4J component error ([#20587](https://github.com/opensearch-project/OpenSearch/pull/20587))
-- Shard routings for closed index are allocated again without opening the index ([#20200](https://github.com/opensearch-project/OpenSearch/pull/20200))
 - Shard routings for closed index are allocated again without opening the index ([#20558](https://github.com/opensearch-project/OpenSearch/pull/20558))
 
 ### Dependencies

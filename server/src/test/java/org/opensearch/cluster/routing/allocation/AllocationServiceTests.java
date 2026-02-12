@@ -47,6 +47,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingNode;
+import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
@@ -574,7 +575,6 @@ public class AllocationServiceTests extends OpenSearchTestCase {
     public void testClosedIndexShardsAreNotAllocatedDuringReroute() {
         final String indexName = "test-closed-index";
 
-        // Create a cluster with 2 nodes
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         nodesBuilder.add(
             new DiscoveryNode(
@@ -595,20 +595,17 @@ public class AllocationServiceTests extends OpenSearchTestCase {
             )
         );
 
-        // Create index metadata in CLOSE state with verified_before_close setting
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put("index.verified_before_close", true))  // Required for addAsFromOpenToClose
+            .settings(settings(Version.CURRENT).put("index.verified_before_close", true))
             .numberOfShards(1)
             .numberOfReplicas(1)
-            .state(IndexMetadata.State.CLOSE)  // Index is closed
+            .state(IndexMetadata.State.CLOSE)
             .build();
 
         final Metadata.Builder metadataBuilder = Metadata.builder().put(indexMetadata, false);
 
-        // Create routing table with unassigned shards (as they would be after closing)
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder().addAsFromOpenToClose(indexMetadata);
 
-        // Add INDEX_CLOSED_BLOCK to prevent allocation (simulating closed index behavior)
         final ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
             .addIndexBlock(indexName, MetadataIndexStateService.INDEX_CLOSED_BLOCK);
 
@@ -619,15 +616,11 @@ public class AllocationServiceTests extends OpenSearchTestCase {
             .blocks(blocksBuilder)
             .build();
 
-        // Create allocation service with no-op shards allocator (similar to testAssignsPrimariesInPriorityOrderThenReplicas)
         final AllocationService allocationService = new AllocationService(
             new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
             new ShardsAllocator() {
                 @Override
-                public void allocate(RoutingAllocation allocation) {
-                    // Closed index shards should not reach here as they're filtered by allocateExistingUnassignedShards
-                    // This verifies our fix works correctly
-                }
+                public void allocate(RoutingAllocation allocation) {}
 
                 @Override
                 public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
@@ -642,17 +635,14 @@ public class AllocationServiceTests extends OpenSearchTestCase {
             Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator())
         );
 
-        // Perform reroute
         final ClusterState reroutedState = allocationService.reroute(clusterState, "test reroute");
 
-        // Verify that shards remain unassigned (not allocated)
         final IndexRoutingTable indexRoutingTable = reroutedState.routingTable().index(indexName);
         assertNotNull("Index routing table should exist", indexRoutingTable);
 
         final IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(0);
         assertNotNull("Shard routing table should exist", shardRoutingTable);
 
-        // All shards should be UNASSIGNED (not STARTED or INITIALIZING)
         for (ShardRouting shardRouting : shardRoutingTable) {
             assertEquals(
                 "Shard from closed index should remain UNASSIGNED after reroute",
@@ -666,14 +656,161 @@ public class AllocationServiceTests extends OpenSearchTestCase {
             );
         }
 
-        // Verify index metadata is still in CLOSE state
         assertEquals(
             "Index metadata should remain in CLOSE state",
             IndexMetadata.State.CLOSE,
             reroutedState.metadata().index(indexName).getState()
         );
 
-        // Verify no shards are assigned to any node
+        for (RoutingNode routingNode : reroutedState.getRoutingNodes()) {
+            for (ShardRouting shardRouting : routingNode) {
+                assertNotEquals("No shards from closed index should be assigned to nodes", indexName, shardRouting.getIndexName());
+            }
+        }
+    }
+
+    public void testClosedIndexShardsAreNotAllocatedDuringRerouteBatchMode() {
+        final String indexName = "test-closed-index-batch";
+
+        final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
+        nodesBuilder.add(
+            new DiscoveryNode(
+                "node1",
+                buildNewFakeTransportAddress(),
+                Collections.emptyMap(),
+                Set.of(DiscoveryNodeRole.DATA_ROLE),
+                Version.CURRENT
+            )
+        );
+        nodesBuilder.add(
+            new DiscoveryNode(
+                "node2",
+                buildNewFakeTransportAddress(),
+                Collections.emptyMap(),
+                Set.of(DiscoveryNodeRole.DATA_ROLE),
+                Version.CURRENT
+            )
+        );
+
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put("index.verified_before_close", true))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .state(IndexMetadata.State.CLOSE)
+            .build();
+
+        final Metadata.Builder metadataBuilder = Metadata.builder().put(indexMetadata, false);
+
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder().addAsFromOpenToClose(indexMetadata);
+
+        final ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
+            .addIndexBlock(indexName, MetadataIndexStateService.INDEX_CLOSED_BLOCK);
+
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(nodesBuilder)
+            .metadata(metadataBuilder)
+            .routingTable(routingTableBuilder.build())
+            .blocks(blocksBuilder)
+            .build();
+
+        final ExistingShardsAllocator batchAllocator = new ExistingShardsAllocator() {
+            @Override
+            public void beforeAllocation(RoutingAllocation allocation) {}
+
+            @Override
+            public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
+
+            @Override
+            public void allocateUnassigned(
+                ShardRouting shardRouting,
+                RoutingAllocation allocation,
+                UnassignedAllocationHandler unassignedAllocationHandler
+            ) {}
+
+            @Override
+            public Runnable allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
+                RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+                while (iterator.hasNext()) {
+                    ShardRouting shard = iterator.next();
+                    if (shard.primary() == primary) {
+                        IndexMetadata indexMd = allocation.metadata().index(shard.index());
+                        if (indexMd != null && indexMd.getState() == IndexMetadata.State.CLOSE) {
+                            continue;
+                        }
+                    }
+                }
+                return () -> {};
+            }
+
+            @Override
+            public AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting unassignedShard, RoutingAllocation allocation) {
+                return AllocateUnassignedDecision.NOT_TAKEN;
+            }
+
+            @Override
+            public void cleanCaches() {}
+
+            @Override
+            public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {}
+
+            @Override
+            public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {}
+
+            @Override
+            public int getNumberOfInFlightFetches() {
+                return 0;
+            }
+        };
+
+        final AllocationService allocationService = new AllocationService(
+            new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
+            new ShardsAllocator() {
+                @Override
+                public void allocate(RoutingAllocation allocation) {}
+
+                @Override
+                public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                    return ShardAllocationDecision.NOT_TAKEN;
+                }
+            },
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE,
+            Settings.builder().put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.getKey(), true).build(),
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+        );
+
+        Map<String, ExistingShardsAllocator> allocators = new HashMap<>();
+        allocators.put(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator());
+        allocators.put(ShardsBatchGatewayAllocator.ALLOCATOR_NAME, batchAllocator);
+        allocationService.setExistingShardsAllocators(allocators);
+
+        final ClusterState reroutedState = allocationService.reroute(clusterState, "test reroute");
+
+        final IndexRoutingTable indexRoutingTable = reroutedState.routingTable().index(indexName);
+        assertNotNull("Index routing table should exist", indexRoutingTable);
+
+        final IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(0);
+        assertNotNull("Shard routing table should exist", shardRoutingTable);
+
+        for (ShardRouting shardRouting : shardRoutingTable) {
+            assertEquals(
+                "Shard from closed index should remain UNASSIGNED after reroute in batch mode",
+                ShardRoutingState.UNASSIGNED,
+                shardRouting.state()
+            );
+            assertEquals(
+                "Shard should have INDEX_CLOSED unassigned reason",
+                UnassignedInfo.Reason.INDEX_CLOSED,
+                shardRouting.unassignedInfo().getReason()
+            );
+        }
+
+        assertEquals(
+            "Index metadata should remain in CLOSE state",
+            IndexMetadata.State.CLOSE,
+            reroutedState.metadata().index(indexName).getState()
+        );
+
         for (RoutingNode routingNode : reroutedState.getRoutingNodes()) {
             for (ShardRouting shardRouting : routingNode) {
                 assertNotEquals("No shards from closed index should be assigned to nodes", indexName, shardRouting.getIndexName());
