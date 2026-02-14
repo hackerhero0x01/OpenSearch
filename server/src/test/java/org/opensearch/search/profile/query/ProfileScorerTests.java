@@ -44,6 +44,7 @@ import org.opensearch.search.profile.ProfileMetricUtil;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.Collection;
 
 public class ProfileScorerTests extends OpenSearchTestCase {
 
@@ -111,5 +112,31 @@ public class ProfileScorerTests extends OpenSearchTestCase {
 
         // Verify getWrappedScorer returns the original scorer
         assertSame(fakeScorer, profileScorer.getWrappedScorer());
+    }
+
+    public void testImplementsScorerWrapper() throws IOException {
+        Query query = new MatchAllDocsQuery();
+        Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
+        FakeScorer fakeScorer = new FakeScorer(weight);
+        QueryProfileBreakdown profile = new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
+        ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
+
+        // ProfileScorer implements ScorerWrapper, allowing plugins to detect and unwrap
+        // profiling wrappers using instanceof without reflection
+        assertTrue("ProfileScorer should implement ScorerWrapper", profileScorer instanceof ScorerWrapper);
+        ScorerWrapper wrapper = (ScorerWrapper) profileScorer;
+        assertSame("ScorerWrapper.getWrappedScorer() should return the original scorer", fakeScorer, wrapper.getWrappedScorer());
+    }
+
+    public void testGetChildren_delegatesToWrappedScorer() throws IOException {
+        Query query = new MatchAllDocsQuery();
+        Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
+        FakeScorer fakeScorer = new FakeScorer(weight);
+        QueryProfileBreakdown profile = new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
+        ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
+
+        // getChildren() should delegate to the wrapped scorer's getChildren()
+        Collection<Scorer.ChildScorable> children = profileScorer.getChildren();
+        assertEquals("FakeScorer has no children, so ProfileScorer should return empty collection", 0, children.size());
     }
 }
