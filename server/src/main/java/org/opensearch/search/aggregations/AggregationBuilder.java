@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
@@ -184,6 +185,27 @@ public abstract class AggregationBuilder
      * by this builder will contain per owning parent bucket.
      */
     public abstract BucketCardinality bucketCardinality();
+
+    /**
+     * Enables or disables streaming mode for this aggregation.
+     *
+     * @param enabled whether streaming should be enabled
+     * @return this builder for chaining
+     */
+    @ExperimentalApi
+    public AggregationBuilder streamingEnabled(boolean enabled) {
+        return this;
+    }
+
+    /**
+     * Returns whether streaming mode is enabled for this aggregation.
+     *
+     * @return true if streaming is enabled, false otherwise (default)
+     */
+    @ExperimentalApi
+    public boolean isStreamingEnabled() {
+        return false;
+    }
 
     /**
      * Common xcontent fields shared among aggregator builders

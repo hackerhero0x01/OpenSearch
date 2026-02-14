@@ -14,7 +14,9 @@ import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.AliasFilter;
+import org.opensearch.search.streaming.FlushModeResolver;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.Transport;
 
@@ -105,6 +107,10 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
                 try {
                     onShardResult(result, shardIt);
                 } finally {
+                    SearchSourceBuilder source = getRequest().source();
+                    if (source != null && source.aggregations() != null) {
+                        FlushModeResolver.setStreamingFlag(source.aggregations());
+                    }
                     executeNext(pendingExecutions, thread);
                 }
             }

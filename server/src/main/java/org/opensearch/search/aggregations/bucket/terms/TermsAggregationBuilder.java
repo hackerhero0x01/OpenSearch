@@ -67,6 +67,7 @@ import java.util.Objects;
  */
 public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<TermsAggregationBuilder> {
     public static final String NAME = "terms";
+    public static final String STREAMING_NAME = "streaming_terms";
     public static final ValuesSourceRegistry.RegistryKey<TermsAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,
         TermsAggregatorSupplier.class
@@ -143,6 +144,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         DEFAULT_BUCKET_COUNT_THRESHOLDS
     );
     private boolean showTermDocCountError = false;
+    private boolean streamingEnabled = false;
 
     public TermsAggregationBuilder(String name) {
         super(name);
@@ -160,6 +162,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         this.collectMode = clone.collectMode;
         this.bucketCountThresholds = new BucketCountThresholds(clone.bucketCountThresholds);
         this.showTermDocCountError = clone.showTermDocCountError;
+        this.streamingEnabled = clone.streamingEnabled;
     }
 
     @Override
@@ -183,6 +186,9 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         order = InternalOrder.Streams.readOrder(in);
         showTermDocCountError = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_3_5_0)) {
+            streamingEnabled = in.readBoolean();
+        }
     }
 
     @Override
@@ -198,6 +204,9 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         out.writeOptionalWriteable(includeExclude);
         order.writeTo(out);
         out.writeBoolean(showTermDocCountError);
+        if (out.getVersion().onOrAfter(Version.V_3_5_0)) {
+            out.writeBoolean(streamingEnabled);
+        }
     }
 
     /**
@@ -379,6 +388,23 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         return this;
     }
 
+    /**
+     * Set whether streaming aggregation is enabled
+     */
+    @Override
+    public TermsAggregationBuilder streamingEnabled(boolean streamingEnabled) {
+        this.streamingEnabled = streamingEnabled;
+        return this;
+    }
+
+    /**
+     * Returns whether streaming mode is enabled for this aggregation.
+     */
+    @Override
+    public boolean isStreamingEnabled() {
+        return streamingEnabled;
+    }
+
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.MANY;
@@ -434,7 +460,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             executionHint,
             includeExclude,
             order,
-            showTermDocCountError
+            showTermDocCountError,
+            streamingEnabled
         );
     }
 
@@ -449,12 +476,13 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             && Objects.equals(executionHint, other.executionHint)
             && Objects.equals(includeExclude, other.includeExclude)
             && Objects.equals(order, other.order)
-            && Objects.equals(showTermDocCountError, other.showTermDocCountError);
+            && Objects.equals(showTermDocCountError, other.showTermDocCountError)
+            && Objects.equals(streamingEnabled, other.streamingEnabled);
     }
 
     @Override
     public String getType() {
-        return NAME;
+        return streamingEnabled ? STREAMING_NAME : NAME;
     }
 
     @Override

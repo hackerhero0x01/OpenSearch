@@ -131,6 +131,21 @@ public final class FlushModeResolver {
         return true;
     }
 
+    /**
+     * Sets streaming flag on .
+     * This should be called after {@link #isStreamable(AggregatorFactories.Builder)} returns true.
+     *
+     * @param aggregations the aggregation factories to enable streaming on
+     */
+    public static void setStreamingFlag(AggregatorFactories.Builder aggregations) {
+        if (aggregations == null) {
+            return;
+        }
+        for (AggregationBuilder agg : aggregations.getAggregatorFactories()) {
+            agg.streamingEnabled(true);
+        }
+    }
+
     private static boolean isTopLevelStreamable(AggregationBuilder agg) {
         if (!(agg instanceof TermsAggregationBuilder)) {
             return false;
