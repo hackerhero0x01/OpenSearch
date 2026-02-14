@@ -35,9 +35,12 @@ package org.opensearch.transport.client.node;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
+import org.opensearch.action.StreamActionListener;
 import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.support.StreamTransportAction;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
@@ -47,6 +50,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterService;
+import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.support.AbstractClient;
 
@@ -68,21 +72,41 @@ public class NodeClient extends AbstractClient {
     private Supplier<String> localNodeId;
     private RemoteClusterService remoteClusterService;
     private NamedWriteableRegistry namedWriteableRegistry;
+    private StreamTransportService streamTransportService;
 
     public NodeClient(Settings settings, ThreadPool threadPool) {
         super(settings, threadPool);
     }
 
+    /**
+     * Initialize the client with action registry and services
+     * @deprecated Use {@link #initialize(DynamicActionRegistry, Supplier, RemoteClusterService, NamedWriteableRegistry, StreamTransportService)} instead
+     */
+    @Deprecated
     public void initialize(
         DynamicActionRegistry actionRegistry,
         Supplier<String> localNodeId,
         RemoteClusterService remoteClusterService,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
+        initialize(actionRegistry, localNodeId, remoteClusterService, namedWriteableRegistry, null);
+    }
+
+    /**
+     * Initialize the client with action registry and services including stream transport
+     */
+    public void initialize(
+        DynamicActionRegistry actionRegistry,
+        Supplier<String> localNodeId,
+        RemoteClusterService remoteClusterService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        StreamTransportService streamTransportService
+    ) {
         this.actionRegistry = actionRegistry;
         this.localNodeId = localNodeId;
         this.remoteClusterService = remoteClusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.streamTransportService = streamTransportService;
     }
 
     @Override
@@ -162,5 +186,28 @@ public class NodeClient extends AbstractClient {
     @Override
     public SearchRequestBuilder prepareStreamSearch(String... indices) {
         return super.prepareStreamSearch(indices);
+    }
+
+    /**
+     * Execute a streaming action locally
+     */
+    @ExperimentalApi
+    public <Request extends ActionRequest, Response extends ActionResponse> void executeStream(
+        ActionType<Response> action,
+        Request request,
+        StreamActionListener<Response> listener
+    ) {
+        if (streamTransportService == null) {
+            throw new IllegalStateException("Stream transport not available");
+        }
+
+        TransportAction<Request, Response> transportAction = transportAction(action);
+        if (!(transportAction instanceof StreamTransportAction)) {
+            throw new IllegalStateException("Action [" + action + "] is not a streaming action");
+        }
+
+        @SuppressWarnings("unchecked")
+        StreamTransportAction<Request, Response> streamAction = (StreamTransportAction<Request, Response>) transportAction;
+        streamAction.executeStream(request, listener);
     }
 }
